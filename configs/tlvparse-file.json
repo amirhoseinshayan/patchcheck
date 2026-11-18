@@ -204,6 +204,17 @@
         "location": "tlvparse.c:copy_value",
         "key": "WRITE"
       }
+    },
+    {
+      "id": "poc-blob-new",
+      "category": "original",
+      "input": "../corpus/tlvparse/inputs/poc-blob-new.bin",
+      "oracle": "../oracles/tlvparse/poc-blob-new.json",
+      "signature": {
+        "error_type": "heap-buffer-overflow",
+        "location": "tlvparse.c:load_blob",
+        "key": "WRITE"
+      }
     }
   ],
   "corpus_dir": "../corpus/tlvparse/regressions",

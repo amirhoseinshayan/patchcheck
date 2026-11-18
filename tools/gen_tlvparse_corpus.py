@@ -59,6 +59,10 @@ CASES = [
     # Variant shaped like a fuzzer finding: valid records first, junk after the faulty record.
     ('poc-long-blob', 'original', MAGIC + name(b'alice') + number(42) + blob(b'B' * 100) + bytes(range(40)),
      err('value too long'), 'Security property'),
+    # New Issue witness: a *valid* 16-byte blob. On the base it decodes cleanly; on
+    # the new-issue branch a fixed 8-byte heap buffer in load_blob overflows.
+    ('poc-blob-new', 'original', MAGIC + blob(b'\x01' * 16),
+     ok('blob: 16 bytes, sum=16', 'records: 1'), 'Security property'),
 ]
 
 
