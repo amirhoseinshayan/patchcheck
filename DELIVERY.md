@@ -1,7 +1,7 @@
-# Patchcheck — final delivery 1.0.8
+# Patchcheck — final delivery 1.0.9
 
-- Archive version: 1.0.8 (= Python package version in both `pyproject.toml` files).
-- Packaged: 2026-11-17
+- Archive version: 1.0.9 (= Python package version in both `pyproject.toml` files).
+- Packaged: 2026-11-18
 
 ## Layout
 
@@ -94,6 +94,26 @@
   copies and `tools/generate_schemas.py` are in sync.
 - The full hosted/native smoke run remains open; target selection and reference
   criteria are in `docs/teacher-proposal.md` (pending teacher sign-off).
+
+## Changes for 1.0.9 (third target: libpng)
+
+- Added a third real target, **libpng** (`pnginfo`), covering CVE-2015-8126 and
+  its incomplete fix CVE-2015-8472 (`png_set_PLTE` / `png_get_PLTE` did not clamp
+  the palette size to the bit depth). `targets/libpng/` holds `base` (1.6.18),
+  `correct`, `incomplete` and `regression`; `configs/libpng-file.json`,
+  `corpus/libpng/`, `oracles/libpng/` and `tools/gen_libpng_corpus.py` were added.
+  The environment image now installs `zlib1g-dev` (libpng links `-lz`/`-lm`).
+- The three patch scenarios return the expected verdicts: `correct` → 0,
+  `incomplete` → 10 (the observed bit-depth-1 PoC is blocked but a different
+  bit-depth-2 input still overflows) and `regression` → 20 (a valid 8-bit palette
+  is wrongly truncated). The release build detects the overflow through
+  glibc-malloc-check and the sanitized build through AddressSanitizer, kept
+  separate per §3.2.
+- Tool fix: `analysis.LIBC_CHECKS` now recognises glibc's exact
+  `malloc(): corrupted top size` (and the sibling `corrupted unsorted chunks`,
+  `invalid size (unsorted)`, `unsorted/smallbin double linked list corrupted`)
+  heap-corruption diagnostics as a confirmed `glibc-malloc-check` finding instead
+  of an unclassified bare abort. A unit test covers the new pattern.
 
 ## Reproducing
 

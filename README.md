@@ -17,8 +17,9 @@ Priority when several apply: 30 > 10 > 20 > 40 > 0. Implemented: crash classific
 verdicts, replay, minimization, regression corpus, patch-to-finding correlation
 (`confirmed` / `rejected` / `unknown` per finding, in `report.json` and `summary.md`) and
 binary hardening comparison (a patch that weakens NX/PIE/RELRO cannot PASS). `bytecount` and `lineparse` are
-harmless fixtures and always end in 40. Two real targets: `tlvparse` (our own
-program) and `giflib` (`gif2rgb`, CVE-2016-3977) — the real project.
+harmless fixtures and always end in 40. Three real targets: `tlvparse` (our own
+program), `giflib` (`gif2rgb`, CVE-2016-3977) and `libpng` (`pnginfo`, CVE-2015-8126
+and its incomplete fix CVE-2015-8472) — two real projects.
 
 ## Quick start (clean Linux x86_64)
 
@@ -119,6 +120,7 @@ to the exact source snapshot and cannot escape it. See the three configs:
 | `configs/lineparse-argv.json` | independent C++ program | argv |
 | `configs/tlvparse-file.json` | own heap-buffer-overflow target, 4 versions | file |
 | `configs/giflib-file.json` | real project: giflib gif2rgb, CVE-2016-3977, 4 versions | file |
+| `configs/libpng-file.json` | real project: libpng pnginfo, CVE-2015-8126/8472, 4 versions | file |
 
 ### Evaluating different patches
 
@@ -180,6 +182,32 @@ generated from it by `tools/gen_giflib_corpus.py`; the GIF LZW encoder mirrors
 giflib's decoder only so the files decode. giflib source is **not** vendored in
 Git history — `targets/giflib/<version>/` holds the minimal build tree of each
 version.
+
+The third target is the real libpng library with **CVE-2015-8126** and its
+incomplete fix **CVE-2015-8472**. `png_set_PLTE` / `png_get_PLTE` did not clamp
+the palette size to the image bit depth, so a palette PNG with bit depth 1/2/4
+can carry up to 256 PLTE entries. The `pnginfo` driver sizes a buffer from the
+correct maximum (`1 << bit_depth`) and copies the reported palette, overflowing
+on the vulnerable build. `base` is libpng 1.6.18; `correct` applies the
+security-relevant hunks of the real 1.6.19 fix.
+
+```bash
+.venv/bin/patchcheck run configs/libpng-file.json --candidate incomplete --out artifacts/libpng-incomplete
+```
+
+| libpng version | Change | Expected final verdict |
+|---|---|---|
+| `base` | palette size is not clamped to the bit depth (up to 256 entries) | vulnerable |
+| `correct` | `png_handle_PLTE`/`png_set_PLTE` clamp to `1 << bit_depth` | 0 PASS |
+| `incomplete` | clamp only for the observed bit-depth-1 case; bit depths 2/4 still accept an oversized palette | 10 VULN_REMAINS |
+| `regression` | fix plus an over-strict clamp that truncates valid 8-bit (256-entry) palettes to 128 | 20 FUNC_REGRESSION |
+
+Spec: `oracles/libpng/SPEC.md`. Inputs (byte-built PNGs) and oracles are
+generated from it by `tools/gen_libpng_corpus.py`. libpng source is **not**
+vendored in Git history — `targets/libpng/<version>/` holds the minimal build
+tree of each version (the 15 libpng translation units, headers and `pnglibconf.h`
+plus the `pnginfo.c` driver); the build links system zlib (`-lz`) and libm
+(`-lm`), so the environment image installs `zlib1g-dev`.
 
 Oracles document an independent source and support byte-exact base64, full-match
 UTF-8 regex or parsed JSON, expected exit code and optional stderr. No output

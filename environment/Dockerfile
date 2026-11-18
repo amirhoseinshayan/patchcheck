@@ -4,7 +4,7 @@ ARG DEBIAN_SNAPSHOT=20261110T000000Z
 RUN printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s trixie main\n' "$DEBIAN_SNAPSHOT" > /etc/apt/sources.list \
     && rm -f /etc/apt/sources.list.d/debian.sources \
     && apt-get -o Acquire::Check-Valid-Until=false update \
-    && apt-get install -y --no-install-recommends gcc g++ binutils git make libc6-dev \
+    && apt-get install -y --no-install-recommends gcc g++ binutils git make libc6-dev zlib1g-dev \
     && dpkg-query -W > /opt/patchcheck-packages.lock \
     && rm -rf /var/lib/apt/lists/*
 ENV LANG=C LC_ALL=C TZ=UTC

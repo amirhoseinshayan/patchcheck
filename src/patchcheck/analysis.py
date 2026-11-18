@@ -74,8 +74,11 @@ LIBC_CHECKS = [
     (r'\*\*\* buffer overflow detected \*\*\*', 'buffer-overflow', 'fortify-source', '__chk_fail'),
     (r'double free', 'double-free', 'glibc-malloc-check', 'glibc malloc'),
     (r'free\(\): invalid (pointer|size)|munmap_chunk\(\): invalid pointer', 'invalid-free', 'glibc-malloc-check', 'glibc malloc'),
-    (r'malloc\(\): memory corruption|corrupted size vs\. prev_size|corrupted double-linked list|'
-     r'invalid next size|unaligned tcache chunk|invalid (fastbin|tcache)',
+    (r'malloc\(\): memory corruption|malloc\(\): corrupted top size|'
+     r'malloc\(\): corrupted unsorted chunks|malloc\(\): invalid size \(unsorted\)|'
+     r'corrupted size vs\. prev_size|corrupted double-linked list|invalid next size|'
+     r'unsorted double linked list corrupted|smallbin double linked list corrupted|'
+     r'unaligned tcache chunk|invalid (fastbin|tcache)',
      'heap-corruption', 'glibc-malloc-check', 'glibc malloc'),
 ]
 

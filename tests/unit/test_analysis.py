@@ -127,6 +127,17 @@ class TerminationTests(unittest.TestCase):
         self.assertEqual(obs['error_type'], 'abort')
         self.assertIsNone(obs['signature'])
 
+    def test_glibc_corrupted_top_size_is_confirmed_heap_corruption(self):
+        # glibc's exact heap-corruption diagnostic must be a confirmed finding
+        # (glibc-malloc-check), not an unclassified bare abort. This is the release
+        # build's detector for a heap write past a correctly-sized buffer.
+        run = self.base_run(exit_code=None, signal=6)
+        obs = analyze(run, b'malloc(): corrupted top size\n')['observations'][0]
+        self.assertEqual(obs['confirmation'], 'confirmed')
+        self.assertEqual(obs['error_type'], 'heap-corruption')
+        self.assertEqual(obs['detection_method'], 'glibc-malloc-check')
+        self.assertIsNone(obs['signature'])
+
     def test_asan_segv_on_zero_page_is_null_dereference(self):
         stderr = (b'==1==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x1 bp 0x2 sp 0x3 T0)\n'
                   b'==1==The signal is caused by a READ memory access.\n'

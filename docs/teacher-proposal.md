@@ -6,9 +6,10 @@
 |---|---|---|---|---|
 | `tlvparse` | C، برنامهٔ ELF خودِ گروه | نوشته‌شده توسط گروه بر اساس فرمت TLV | `targets/tlvparse/base` | `targets/tlvparse/correct` |
 | `giflib` (`gif2rgb`) | C، پروژهٔ واقعی | giflib 5.1.4-dev — CVE-2016-3977 | commit `c9a54af` | commit `ea8dbc57` (وصلهٔ بالادستی) |
+| `libpng` (`pnginfo`) | C، پروژهٔ واقعی (کتابخانه) | libpng 1.6.18 — CVE-2015-8126 / CVE-2015-8472 | `targets/libpng/base` | `targets/libpng/correct` (وصلهٔ بالادستی 1.6.19) |
 
-هر دو هدف از فایل ورودی می‌خوانند و خروجی ELF x86_64 می‌سازند. `giflib` همان
-پروژه/کتابخانهٔ واقعی غیراسباب‌بازی است که صورت پروژه الزام کرده است.
+هر سه هدف از فایل ورودی می‌خوانند و خروجی ELF x86_64 می‌سازند. `giflib` و `libpng`
+دو پروژه/کتابخانهٔ واقعی غیراسباب‌بازی‌اند که صورت پروژه الزام کرده است.
 
 ## ۲) چهار نسخهٔ هر هدف و نتایج مورد انتظار
 
@@ -24,6 +25,10 @@
 - `tlvparse`: آسیب‌پذیری `copy_value()` (کپی `len` بایت در بافر ۳۲ بایتی بدون بررسی طول).
 - `giflib`: CVE-2016-3977 — خواندن `ColorMap->Colors[index]` با ایندکس رنگ زمینهٔ
   خارج از محدوده در `DumpScreen2RGB` (heap-buffer-overflow READ).
+- `libpng`: CVE-2015-8126 و وصلهٔ ناقص آن CVE-2015-8472 — `png_set_PLTE`/`png_get_PLTE`
+  تعداد پالت را به عمق بیت تصویر محدود نمی‌کرد؛ یک PNG پالتی با عمق بیت کوچک (۱/۲/۴)
+  می‌تواند تا ۲۵۶ ورودی PLTE داشته باشد. برنامهٔ `pnginfo` بافر را به اندازهٔ درست
+  (`1 << bit_depth`) می‌گیرد و تعداد گزارش‌شده را کپی می‌کند (heap-buffer-overflow WRITE).
 
 ## ۳) معیار صحت عملکرد (مرجع مستقل)
 
@@ -31,12 +36,15 @@
 
 - `oracles/tlvparse/SPEC.md` — از تعریف فرمت TLV؛ ورودی‌های معتبر/مرزی/نامعتبر و خروجی/کد خروج هرکدام.
 - `oracles/giflib/SPEC.md` — از مشخصات GIF89a و رفتار مستند `gif2rgb`؛ محاسبهٔ بایت‌به‌بایت RGB از مشخصات.
+- `oracles/libpng/SPEC.md` — از مشخصات PNG و رفتار مستند `png_read_png`/`png_get_PLTE`؛
+  اندازهٔ درست پالت `1 << bit_depth` و خروجی/کد خروج هر ورودی.
 
 هر oracle دارای `provenance.independent = true` و ارجاع به بخش مشخص SPEC است؛ خروجی
 و کد خروج مورد انتظار به‌صورت exact/regex/json مقایسه می‌شوند و هیچ عادی‌سازی وجود ندارد.
 
 ## ۴) ورودی‌ها
 
-ورودی‌ها توسط `tools/gen_tlvparse_corpus.py` و `tools/gen_giflib_corpus.py` از مشخصات
-تولید می‌شوند (برای giflib، بایت‌به‌بایت از GIF89a و رمزگذار LZW که فقط برای رمزگشایی
-آینهٔ giflib است؛ مقادیر oracle از giflib نمی‌آیند).
+ورودی‌ها توسط `tools/gen_tlvparse_corpus.py`، `tools/gen_giflib_corpus.py` و
+`tools/gen_libpng_corpus.py` از مشخصات تولید می‌شوند (برای giflib، بایت‌به‌بایت از
+GIF89a و رمزگذار LZW که فقط برای رمزگشایی آینهٔ giflib است؛ برای libpng، بایت‌به‌بایت
+از ساختار chunkهای PNG و zlib؛ مقادیر oracle از برنامه‌ها نمی‌آیند).
