@@ -2,8 +2,8 @@
 
 **Verdict: 10 VULN_REMAINS / NEW_ISSUE**
 
-Versions: base `d25b2aa287` → candidate `7f4edc7f5c`
-Builds: 4; tests: 7; executions: 52.
+Versions: base `a0924ed046` → candidate `81760b3195`
+Builds: 4; tests: 8; executions: 68.
 
 | Axis | Result |
 |---|---|
@@ -17,15 +17,17 @@ Builds: 4; tests: 7; executions: 52.
 |---|---|---|---|---|---|---|
 | Fixed | heap-buffer-overflow | asan | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed | stable | finding-security-poc-bg-oob-sanitized |
 | Incomplete Fix | heap-buffer-overflow | asan | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed | stable | finding-security-poc-bg-far-sanitized |
+| Fixed | heap-buffer-overflow | asan | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed | stable | finding-security-generated-f277902e97e8a227-sanitized |
 
 ## Patch correlation
 
-confirmed = a changed function is on the failing stack; rejected = the failure persists and the patch does not touch its stack; unknown = not enough evidence.
+Confirmed relationships cite a relevant stack frame or a covered changed line in the matching version. Unknown relationships lack sufficient evidence.
 
 | Finding | Status | Relation | Hunks | Evidence |
 |---|---|---|---|---|
-| finding-security-poc-bg-oob-sanitized | Fixed | **confirmed** | h4 | h4 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the base failure; h4 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the base failure; hunks outside any function (not mapped): h2; the same input crashes base at util/gif2rgb.c:DumpScreen2RGB and not the candidate |
-| finding-security-poc-bg-far-sanitized | Incomplete Fix | **confirmed** | h4 | h4 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the base failure; h4 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the base failure; h4 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the candidate failure; h4 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the candidate failure; hunks outside any function (not mapped): h2; the patch changes the failing path but the same failure at util/gif2rgb.c:DumpScreen2RGB persists on the candidate |
+| finding-security-poc-bg-oob-sanitized | Fixed | **confirmed** | h5 | h5 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the base failure; h5 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the base failure; hunks outside any function (not mapped): h1, h3; the same input crashes base at util/gif2rgb.c:DumpScreen2RGB and not the candidate |
+| finding-security-poc-bg-far-sanitized | Incomplete Fix | **confirmed** | h5 | h5 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the base failure; h5 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the base failure; h5 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the candidate failure; h5 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the candidate failure; hunks outside any function (not mapped): h1, h3; the patch changes the failing path but the same failure at util/gif2rgb.c:DumpScreen2RGB persists on the candidate |
+| finding-security-generated-f277902e97e8a227-sanitized | Fixed | **confirmed** | h5 | h5 changes util/gif2rgb.c:GIF2RGB, the caller (frame #1) of the base failure; h5 changes util/gif2rgb.c:GIF2RGB, the allocation-stack (frame #1) of the base failure; hunks outside any function (not mapped): h1, h3; the same input crashes base at util/gif2rgb.c:DumpScreen2RGB and not the candidate |
 
 ## Binary hardening (release builds)
 
@@ -36,6 +38,16 @@ confirmed = a changed function is on the failing stack; rejected = the failure p
 | pie | enabled | enabled | same |
 | relro | full | full | same |
 | stack_canary | present | present | same |
+
+## Minimization coverage
+
+Status: out-of-scope = not minimizable; supported = minimizable but not run; reduced / no-reduction / unstable / failed = outcome of an attempted run; registered = reduced-or-unchanged input written to the regression corpus; unrecorded = an older report did not record an outcome in this table.
+
+| Finding | Status | Covered | Registered | Minimized test | Reason |
+|---|---|---|---|---|---|
+| finding-security-poc-bg-oob-sanitized | supported | yes | no | - | test has a matchable signature reproduced on the sanitized base |
+| finding-security-poc-bg-far-sanitized | supported | yes | no | - | test has a matchable signature reproduced on the sanitized base |
+| finding-security-generated-f277902e97e8a227-sanitized | supported | yes | no | - | test has a matchable signature reproduced on the sanitized base |
 
 ## Why the analysis is not complete
 
@@ -69,6 +81,8 @@ confirmed = a changed function is on the failing stack; rejected = the failure p
 | poc-bg-oob | sanitized | fail | pass | baseline_fail |
 | poc-bg-far | release | fail | fail | both_fail |
 | poc-bg-far | sanitized | fail | fail | both_fail |
+| generated-f277902e97e8a227 | release | fail | pass | baseline_fail |
+| generated-f277902e97e8a227 | sanitized | fail | pass | baseline_fail |
 
 ## Crash classification
 
@@ -77,3 +91,4 @@ confirmed = a changed function is on the failing stack; rejected = the failure p
 | poc-bg-oob | base | sanitized | heap-buffer-overflow | asan | SIGABRT | READ 1 | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed |
 | poc-bg-far | base | sanitized | heap-buffer-overflow | asan | SIGABRT | READ 1 | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed |
 | poc-bg-far | candidate | sanitized | heap-buffer-overflow | asan | SIGABRT | READ 1 | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed |
+| generated-f277902e97e8a227 | base | sanitized | heap-buffer-overflow | asan | SIGABRT | READ 1 | util/gif2rgb.c:294 in DumpScreen2RGB | confirmed |

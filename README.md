@@ -179,9 +179,9 @@ patch.
 
 Spec: `oracles/giflib/SPEC.md`. Inputs (small GIF89a files) and oracles are
 generated from it by `tools/gen_giflib_corpus.py`; the GIF LZW encoder mirrors
-giflib's decoder only so the files decode. giflib source is **not** vendored in
-Git history — `targets/giflib/<version>/` holds the minimal build tree of each
-version.
+giflib's decoder only so the files decode. `targets/giflib/<version>/` holds the
+**complete upstream source tree** of each version; the build compiles only the
+`gif2rgb` files listed in `configs/giflib-file.json`.
 
 The third target is the real libpng library with **CVE-2015-8126** and its
 incomplete fix **CVE-2015-8472**. `png_set_PLTE` / `png_get_PLTE` did not clamp
@@ -205,11 +205,12 @@ real 1.6.19 (its read-path fix is complete but `png_set_PLTE` still checks
 | `regression` (1.6.20 + edit) | fix plus an over-strict clamp that truncates valid 8-bit (256-entry) palettes to 128 | 20 FUNC_REGRESSION |
 
 Spec: `oracles/libpng/SPEC.md`. Inputs (byte-built PNGs) and oracles are
-generated from it by `tools/gen_libpng_corpus.py`. libpng source is **not**
-vendored in Git history — `targets/libpng/<version>/` holds the minimal build
-tree of each version (the 15 libpng translation units, headers and `pnglibconf.h`
-plus the `pnginfo.c` driver); the build links system zlib (`-lz`) and libm
-(`-lm`), so the environment image installs `zlib1g-dev`.
+generated from it by `tools/gen_libpng_corpus.py`. `targets/libpng/<version>/`
+holds the **complete upstream source tree** of each version (all translation
+units, headers, `scripts/`, `contrib/`, `arm/`, `projects/`, `tests/` and docs)
+plus the `pnginfo.c` driver and a top-level `pnglibconf.h`; the build compiles the
+15 read/write translation units and the driver, and links system zlib (`-lz`) and
+libm (`-lm`), so the environment image installs `zlib1g-dev`.
 
 Oracles document an independent source and support byte-exact base64, full-match
 UTF-8 regex or parsed JSON, expected exit code and optional stderr. No output

@@ -14,7 +14,9 @@ with no range check. SourceForge bug #87.
 | `incomplete` | `correct` with the bound narrowed to reject only the observed PoC index (background 20, i.e. `ColorCount <= bg < 32`); a different out-of-range index (background 37) still reads past the map (our edit) |
 | `regression` | `correct` with an over-strict `!= 0` check (our edit) |
 
-Only the minimal source needed to build `gif2rgb` is kept: `lib/` (decoder,
-encoder, colormap, hashing, quantize, reallocarray) and `util/`
-(`gif2rgb.c`, `getarg.c`, `qprintf.c`). `git diff base correct` in
-`.fixture-repos/giflib` reproduces the upstream fix exactly.
+Each `targets/giflib/<version>/` folder is the **complete upstream source tree**
+of that version (every file from the upstream commit: `lib/`, `util/`, `doc/`,
+`pic/`, `tests/`, build files and docs), so `git diff base correct` in
+`.fixture-repos/giflib` reproduces the full upstream fix exactly. The build only
+compiles the files needed for `gif2rgb` (`lib/` decoder/encoder and
+`util/gif2rgb.c` + helpers), listed in `configs/giflib-file.json`.

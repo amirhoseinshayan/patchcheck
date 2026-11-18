@@ -28,9 +28,10 @@ The `pnginfo.c` driver reads a PNG and then re-encodes it through the public
 `png_set_PLTE` API with a 256-entry palette, so the incomplete fix of 1.6.19 is
 exercised dynamically (not just the read path).
 
-Only the minimal source needed to build `pnginfo` is kept: the 15 libpng
-translation units (`png.c`, `pngerror.c`, `pngget.c`, `pngmem.c`, `pngpread.c`,
-`pngread.c`, `pngrio.c`, `pngrtran.c`, `pngrutil.c`, `pngset.c`, `pngtrans.c`,
-`pngwio.c`, `pngwrite.c`, `pngwtran.c`, `pngwutil.c`), the public/private headers
-and a generated `pnglibconf.h`, plus the `pnginfo.c` driver. The build links
-against the system zlib (`-lz`) and libm (`-lm`).
+Each `targets/libpng/<version>/` folder is the **complete upstream source tree**
+of that version (every file from the upstream tag: all translation units,
+headers, `scripts/`, `contrib/`, `arm/`, `projects/`, `tests/`, build files and
+docs), plus our `pnginfo.c` driver and a top-level `pnglibconf.h` copied from
+`scripts/pnglibconf.h.prebuilt` (the header `configure` would generate). The
+build only compiles the 15 read/write translation units and the driver, listed in
+`configs/libpng-file.json`, and links system zlib (`-lz`) and libm (`-lm`).
