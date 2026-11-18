@@ -114,6 +114,11 @@
   `invalid size (unsorted)`, `unsorted/smallbin double linked list corrupted`)
   heap-corruption diagnostics as a confirmed `glibc-malloc-check` finding instead
   of an unclassified bare abort. A unit test covers the new pattern.
+- Hosted CI is now green: GitHub Actions run
+  https://github.com/amirhoseinshayan/patchcheck/actions/runs/44259284322 on
+  commit `ee02909` completed with **success**, 31 of 31 smoke steps passed. The
+  three libpng scenarios are recorded in the manifest with their exact codes
+  (`correct` 0, `incomplete` 10, `regression` 20).
 
 ## Reproducing
 
@@ -129,11 +134,11 @@ docker build --platform linux/amd64 -t patchcheck-framework:1.0 -f environment/D
 The exact toolchain image is delivered as a separate attachment (NOT inside this ZIP):
 
 - file: `patchcheck-framework-1.0.tar`
-- size: 482870272 bytes
-- SHA-256: `2261b52bd17f35666212a2605311bb1c35951ec235d6687126ea71224d5a05c6`
-- internal Docker id: `sha256:2b961b573f5b9d73bb917915847db1f4eab161c4b98cdac3e7a5834055c34b9a` (tag `patchcheck-framework:1.0`)
+- size: 483155456 bytes
+- SHA-256: `80c63cfac3a7dfc12e7cbbf72c9efedb6c2b2ef2d9eec8afcdddf2b6b480cf83`
+- internal Docker id: `sha256:dce79fafdcefc7e1f4d650b0503722d49c63009912b5957d89ec8c267dd4b92b` (tag `patchcheck-framework:1.0`)
 
 Load it with `docker image load --input patchcheck-framework-1.0.tar`, then verify with
-`docker image inspect sha256:2b961b573f5b9d73bb917915847db1f4eab161c4b98cdac3e7a5834055c34b9a`. After loading, `patchcheck reproduce` accepts the
+`docker image inspect sha256:dce79fafdcefc7e1f4d650b0503722d49c63009912b5957d89ec8c267dd4b92b`. After loading, `patchcheck reproduce` accepts the
 exact id above. A fresh `docker build` from `environment/Dockerfile` produces a
 DIFFERENT id and is not accepted as identical.
