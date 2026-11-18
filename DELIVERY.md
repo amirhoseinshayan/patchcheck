@@ -5,13 +5,13 @@
 
 ## Upload bundle (≤ 20 MB) vs repository
 
-The course upload limit is 20 MB. The delivered `patchcheck-1.0.9.zip` therefore
+The course upload limit is 20 MB. The delivered `patchcheck-1.0.10.zip` therefore
 contains everything **required by the assignment** (tool source, configuration,
 exact target versions, tests and independent oracles, the pipeline file, the
 reference reports and a reproduction bundle, and the run guide), while the bulky
 raw evidence stays in the Git repository and in the hosted CI run:
 
-- **In `patchcheck-1.0.9.zip`**: `src/`, `schemas/`, `configs/`, `targets/`,
+- **In `patchcheck-1.0.10.zip`**: `src/`, `schemas/`, `configs/`, `targets/`,
   `corpus/`, `oracles/`, `tests/`, `ci/`, `tools/`, `environment/`, `vendor/`,
   `docs/`, `.github/`, `results/`, and the root `README.md` / `DELIVERY.md` /
   `pyproject.toml` / `requirements.lock`.
