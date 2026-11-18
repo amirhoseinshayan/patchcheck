@@ -1,0 +1,489 @@
+% گزارش پروژه Patchcheck — امنیت داده و شبکه
+% برای کامپایل: xelatex report.tex (به قالب styles/hw و پوشه‌های fonts/ و images/ از تمپلیت شریف نیاز دارد)
+\documentclass[12pt]{exam}
+
+\usepackage{styles/hw}
+
+% ---------- سربرگ اختصاصی ----------
+\renewcommand{\heading}{%
+	\begin{center}
+		\textbf{\Huge به نام خدا}
+
+		\vspace{0.2cm}
+
+		\includegraphics[width=0.4\textwidth]{images/sharif.png}
+
+		\vspace{0.2cm}
+
+		\textbf{\Huge امنیت داده و شبکه}
+
+		\vspace{0.25cm}
+
+		\textbf{\Large گزارش پروژهٔ اول: اعتبارسنجی خودکار وصله‌های امنیتی و آزمون رگرسیون در \lr{CI/CD}}
+
+		\vspace{0.2cm}
+
+		\large\textbf{دانشکده مهندسی کامپیوتر}
+
+		\vspace{0.1cm}
+
+		\large دانشگاه صنعتی شریف
+
+		\vspace{0.2cm}
+
+		\noindent\rule{\linewidth}{1pt}
+	\end{center}
+
+	مدرس:
+
+	\textbf{سولماز سلیمی}
+
+	\vspace{0.2cm}
+
+	اعضای گروه:
+
+	\textbf{امیرحسین شایان \lr{402170981} - امیرعلی بیگی \lr{402110554}}
+}
+
+\begin{document}
+
+\begin{titlepage}
+	\begin{center}
+		\heading{}
+	\end{center}
+\end{titlepage}
+
+\newpage
+\newpage
+
+
+% ===================== چکیده =====================
+\section{چکیده}
+
+این پروژه ابزاری خودکار به نام \codeword|Patchcheck| می‌سازد که در پایپ‌لاین \lr{CI/CD}
+یک وصلهٔ امنیتی را \textbf{واقعاً اجرا} می‌کند و به دو پرسش صورت‌پروژه پاسخ می‌دهد:
+(۱) آیا خطای امنیتی قبلی بعد از وصله همچنان رخ می‌دهد؟ و (۲) آیا وصله، رفتار درست
+برنامه را روی ورودی‌های معتبر حفظ کرده است؟ ابزار نسخهٔ قبل و بعد از وصله را جداگانه
+به‌صورت \lr{ELF} روی لینوکس \lr{x86\_64} و در دو حالت \lr{Release} و \lr{Sanitized}
+می‌سازد، ورودی‌های معتبر/مرزی/نامعتبر/خطاساز را در یک کانتینر ایزوله با محدودیت منابع
+اجرا می‌کند، خروجی را با یک مرجع مستقل (\lr{oracle}) مقایسه می‌کند، خطاها را طبقه‌بندی
+می‌کند و یک کد خروج استاندارد تولید می‌کند. ابزار روی پنج برنامهٔ مستقل آزمایش شده
+است؛ سه هدف واقعی (\codeword|tlvparse|، \codeword|giflib|، \codeword|libpng|) و دو
+نمونهٔ بی‌خطر برای خودآزمایی چارچوب (\codeword|bytecount|، \codeword|lineparse|).
+هر هدف در یک مخزن مستقل گیت‌هاب قرار دارد و با \lr{Pull Request} ارزیابی می‌شود.
+
+% ===================== مخازن =====================
+\section{مخازن پروژه}
+
+پروژه از یک مخزن اصلی (خود ابزار) و پنج مخزن مستقل هدف تشکیل شده است:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+نام & نقش & آدرس \\
+\midrule
+\codeword|patchcheck| & ابزار اصلی + همهٔ هدف‌ها و نسخه‌ها & \url{https://github.com/amirhoseinshayan/patchcheck} \\
+\codeword|patchcheck-tlvparse| & هدف خودِ گروه & \url{https://github.com/amirhoseinshayan/patchcheck-tlvparse} \\
+\codeword|patchcheck-giflib| & پروژهٔ واقعی & \url{https://github.com/amirhoseinshayan/patchcheck-giflib} \\
+\codeword|patchcheck-libpng| & کتابخانهٔ واقعی & \url{https://github.com/amirhoseinshayan/patchcheck-libpng} \\
+\codeword|patchcheck-bytecount| & نمونهٔ بی‌خطر (فیچر) & \url{https://github.com/amirhoseinshayan/patchcheck-bytecount} \\
+\codeword|patchcheck-lineparse| & نمونهٔ بی‌خطر (فیچر) & \url{https://github.com/amirhoseinshayan/patchcheck-lineparse} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+در مخزن اصلی، همهٔ هدف‌ها زیر پوشهٔ \codeword|targets/| با نسخه‌های دقیق‌شان نگه‌داری
+می‌شوند. در مخازن مستقل، کد همان هدف روی شاخهٔ \codeword|main| (نسخهٔ پایه) است و هر
+وصله به‌صورت یک \lr{Pull Request} جداگانه ارزیابی می‌شود.
+
+% ===================== معماری =====================
+\section{معماری کلی ابزار}
+
+ابزار یک برنامهٔ پایتون است که برای هر ارزیابی این مراحل را طی می‌کند:
+
+\begin{enumerate}
+\item \textbf{برداشت نسخه‌ها}: دو نسخهٔ \codeword|base| (قبل از وصله) و
+\codeword|candidate| (بعد از وصله) را از مخزن گیت با همان \lr{commit} مشخص‌شده استخراج
+و \lr{diff} بین آن‌ها را ذخیره می‌کند.
+\item \textbf{ساخت}: هر دو نسخه در دو حالت \codeword|release| و \codeword|sanitized|
+(با \lr{AddressSanitizer}/\lr{UBSan}) داخل یک کانتینر لینوکس \lr{x86\_64} کامپایل
+می‌شوند.
+\item \textbf{اجرا}: هر ورودی آزمون روی هر چهار بیلد (۲ نسخه × ۲ حالت) در یک کانتینر
+ایزوله با محدودیت زمان/حافظه/خروجی اجرا می‌شود و \lr{stdout}، \lr{stderr}، کد خروج و
+سیگنال ثبت می‌شود.
+\item \textbf{تحلیل}: خروجی با مرجع مستقل مقایسه و خطاها بر اساس شواهد واقعی طبقه‌بندی
+می‌شوند.
+\item \textbf{تصمیم}: بر اساس همهٔ شواهد، یکی از کدهای خروج استاندارد تولید می‌شود.
+\item \textbf{پیگیری}: یافته‌های تأییدشده حداقل سه بار بازپخش می‌شوند و بستهٔ بازتولید
+ساخته می‌شود.
+\end{enumerate}
+
+نکتهٔ مهم معماری این است که ابزار به نام تابع یا ساختار یک برنامهٔ خاص وابسته نیست؛
+افزودن هدف جدید فقط با یک فایل پیکربندی \lr{JSON} انجام می‌شود.
+
+% ===================== الزامات پایه =====================
+\section{دامنهٔ پشتیبانی و الزامات پایه}
+
+\subsection{هدف از نوع C/C++ و خروجی ELF روی لینوکس}
+
+صورت‌پروژه می‌گوید هدف باید برنامهٔ کامپایل‌شدهٔ \lr{C}/\lr{C++} با خروجی \lr{ELF}
+روی لینوکس \lr{x86\_64} باشد. این شرط نه فقط در مستندات، بلکه در خود کد اعمال شده
+است؛ تابع \codeword|check\_elf| بعد از ساخت، سرآیند باینری را می‌خواند و اگر فرمت
+\lr{ELF} ۶۴ بیتی یا معماری \lr{x86\_64} نباشد، ساخت را رد می‌کند:
+
+\begin{latin}
+\begin{lstlisting}[language=Python]
+def check_elf(binary):
+    header = Path(binary).read_bytes()[:64]
+    if len(header) < 64 or header[:4] != b'\x7fELF' or header[4:6] != b'\x02\x01':
+        raise ConfigError('build output must be a 64-bit little-endian ELF executable')
+    kind, machine = struct.unpack_from('<HH', header, 16)
+    if machine != 62 or kind not in (2, 3):   # 62 = x86_64
+        raise ConfigError(f'ELF must be x86_64 EXEC/DYN, got machine={machine}')
+\end{lstlisting}
+\end{latin}
+
+همچنین قبل از ساخت، محیط داخل کانتینر بررسی می‌شود که واقعاً \lr{Linux} و
+\lr{x86\_64} است.
+
+\subsection{ورودی از فایل، آرگومان یا ورودی استاندارد}
+
+ابزار هر سه حالت ورودی را پشتیبانی می‌کند. حالت با \codeword|input.mode| در پیکربندی
+مشخص می‌شود و هر سه حالت پوشش داده شده‌اند:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+هدف & حالت ورودی & نمونه \\
+\midrule
+\codeword|tlvparse|، \codeword|giflib|، \codeword|libpng| & فایل & \codeword|\{binary\} \{input\}| \\
+\codeword|bytecount| & ورودی استاندارد & \codeword|\{binary\} stdin| \\
+\codeword|lineparse| & آرگومان & \codeword|\{binary\} argv \{input\}| \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{قابلیت تعمیم فقط با پیکربندی}
+
+کل تعریف هر هدف — دستور ساخت، مسیر باینری، نحوهٔ ارسال ورودی و مجموعهٔ آزمون‌ها — در
+یک فایل \lr{JSON} است. برای نمونه بخش ساخت و ورودی هدف \codeword|libpng|:
+
+\begin{latin}
+\begin{lstlisting}[language=Python]
+"builds": { "release": { "compiler": "gcc", "flags": ["-O2", "-D_FORTIFY_SOURCE=2", ...],
+            "command": ["{compiler}", "{flags}", "-Isrc", "src/png.c", ..., "-o", "pnginfo", "-lz", "-lm"] } },
+"input": { "mode": "file", "argv": ["{binary}", "{input}"] }
+\end{lstlisting}
+\end{latin}
+
+% ===================== آزمون پویا =====================
+\section{آزمون پویا و گزارش دقیق خطا}
+
+صورت‌پروژه تأکید می‌کند که «اجرای واقعی» اجباری است و اکتفا به تحلیل ایستا پذیرفته
+نیست. این بخش مهم‌ترین بخش برای روز دمو است و دقیق توضیح داده می‌شود.
+
+\subsection{چطور برنامه واقعاً اجرا می‌شود}
+
+هر اجرای هدف داخل یک کانتینر \lr{Docker} جداگانه انجام می‌شود. ابزار باینری و ورودی
+را به مسیرهای ثابت \codeword|/binary| و \codeword|/case-input| سوار (\lr{mount}) می‌کند،
+شبکه را قطع می‌کند، همهٔ \lr{capability}ها را می‌گیرد و محدودیت منابع اعمال می‌کند.
+کد مربوط در \codeword|pipeline.py| (تابع \codeword|execute\_test|) به این شکل است:
+
+\begin{latin}
+\begin{lstlisting}[language=Python]
+mode = test['input_mode']
+input_value = '/case-input'
+if mode == 'argv':          # ورودی به‌صورت آرگومان
+    input_value = input_path.read_bytes().decode('utf-8')
+command = [arg.replace('{binary}', '/binary').replace('{input}', input_value)
+           for arg in config['input']['argv']]
+box = Sandbox(config['environment']['image'], config['limits'])
+result = box.execute(command, cwd,
+                     stdin=input_path if mode == 'stdin' else None,
+                     mounts=[(binary, '/binary'), (input_path, '/case-input')])
+\end{lstlisting}
+\end{latin}
+
+محدودیت‌ها در پیکربندی مشخص می‌شوند (زمان دیواری، زمان پردازنده، حافظه، تعداد فرآیند و
+حجم خروجی) و کانتینر با فلگ‌هایی مثل \codeword|--network none|، \codeword|--read-only|
+و \codeword|--cap-drop ALL| ساخته می‌شود.
+
+\subsection{تفکیک بیلد Release و Sanitized}
+
+هر دو نسخه در دو حالت جداگانه ساخته و اجرا می‌شوند و نتایج آن‌ها مخلوط نمی‌شود:
+\begin{itemize}
+\item \textbf{Release}: با بهینه‌سازی و محافظ‌های کامپایلر
+(\codeword|-O2 -D\_FORTIFY\_SOURCE=2 -fstack-protector-strong|) — نشان می‌دهد خطا در
+باینری نهایی چطور بروز می‌کند.
+\item \textbf{Sanitized}: با \codeword|-fsanitize=address,undefined| — جزئیات دقیق خطای
+حافظه (نوع، محل، اندازهٔ دسترسی) را می‌دهد.
+\end{itemize}
+
+\subsection{طبقه‌بندی خطا}
+
+ابزار چهار چیز را جدا نگه می‌دارد: \textbf{نوع خطا} (سرریز بافر هیپ/پشته، استفادهٔ پس
+از آزادسازی و\ldots)، \textbf{روش تشخیص} (\lr{ASan}، \lr{UBSan}، محافظ قناری،
+\lr{FORTIFY}، سیگنال سیستم‌عامل)، \textbf{نحوهٔ خاتمه} (کد خروج/سیگنال) و \textbf{محل}.
+بخشی از کد مربوط که پیام \lr{ASan} را به نوع خطا تبدیل می‌کند:
+
+\begin{latin}
+\begin{lstlisting}[language=Python]
+ASAN_TYPES = [
+    ('heap-use-after-free', 'use-after-free'),
+    ('heap-buffer-overflow', 'heap-buffer-overflow'),
+    ('stack-buffer-overflow', 'stack-buffer-overflow'),
+    ('SEGV', 'segmentation-fault'),
+    ...
+]
+\end{lstlisting}
+\end{latin}
+
+نکتهٔ مهم: یک توقف بدون شواهد (مثلاً سیگنال خام بدون خروجی آشکارساز) هرگز به‌عنوان
+آسیب‌پذیری تأییدشده ثبت نمی‌شود.
+
+\subsection{مقایسه با مرجع مستقل}
+
+صحت عملکرد با یک \lr{oracle} مستقل سنجیده می‌شود که از مستندات برنامه نوشته شده است
+(نه از خروجی نسخهٔ وصله‌شده). برای هر آزمون، کد خروج، \lr{stdout} و \lr{stderr} مورد
+انتظار به‌صورت بایت‌به‌بایت یا با الگو مشخص می‌شود:
+
+\begin{latin}
+\begin{lstlisting}[language=Python]
+# oracles/libpng/poc-bit1-256pal.json  (خلاصه)
+{ "exit_code": 1, "stdout": {"mode": "exact", "base64": ""},
+  "stderr": {"mode": "exact", "base64": "cG5nIGVycm9yCg==" } }   # "png error\n"
+\end{lstlisting}
+\end{latin}
+
+% ===================== پیوند یافته به وصله =====================
+\section{اعتبارسنجی وصله و پیوند دادن یافته به تغییرات}
+
+\subsection{تفکیک وضعیت یافته‌ها}
+
+هر ورودی خطاساز روی هر دو نسخه اجرا می‌شود و یافته به یکی از این دسته‌ها تعلق می‌گیرد:
+\begin{itemize}
+\item \textbf{Fixed}: خطا روی پایه بازتولید می‌شود ولی روی وصله نه.
+\item \textbf{Incomplete Fix}: خطا روی هر دو نسخه با همان امضا باقی می‌ماند (وصله ناقص).
+\item \textbf{New Issue}: ورودی روی پایه پاک است ولی روی وصله خطای جدیدی می‌دهد.
+\item \textbf{Functional Regression}: ورودی معتبر در پایه درست بود و روی وصله خراب شده.
+\item \textbf{Inconclusive}: شواهد کافی نیست.
+\end{itemize}
+
+\subsection{همبستگی با diff}
+
+صورت‌پروژه می‌گوید «محل خطا الزاماً محل تغییر نیست» و «هم‌جواری ایستا کافی نیست». در
+نسخهٔ نهایی، ابزار همبستگی را سه‌سطحی می‌کند:
+\begin{itemize}
+\item \textbf{confirmed}: فقط وقتی خطِ \lr{crash} خودش خطِ تغییرکرده باشد (ارتباط
+داده‌ای/کنترلی مستقیم).
+\item \textbf{candidate}: تابع یا ماکروی تغییرکرده صرفاً روی پشتهٔ خطا حاضر است (نامزد،
+نه تأیید).
+\item \textbf{unknown}: شواهد کافی نیست.
+\end{itemize}
+وضعیت یافته (\lr{Fixed}/\lr{New Issue}) مستقل از وضعیت همبستگی می‌ماند. این دقیقاً همان
+چیزی است که صورت‌پروژه می‌خواهد: «در نبود شواهد کافی باید \lr{unknown} گزارش شود».
+
+\subsection{کدهای خروج مقرر}
+
+تابع تصمیم (\codeword|decision.py|) تقدم کدهای خروج را پیاده می‌کند:
+
+\begin{latin}
+\begin{lstlisting}[language=Python]
+def decide(axes):
+    if axes.get('technical_error'):        return 30   # خطای ساخت/پیکربندی/ابزار
+    if axes.get('confirmed_security_issue'): return 10   # VULN_REMAINS / NEW_ISSUE
+    if axes.get('functional_regression'):   return 20   # پسرفت عملکردی
+    if (axes.get('incomplete') or not axes.get('baseline_reproduced', False)
+            or axes.get('hardening_degraded')): return 40   # شواهد ناکافی
+    return 0                                             # PASS
+\end{lstlisting}
+\end{latin}
+
+% ===================== تکرارپذیری و کوچک‌سازی =====================
+\section{تکرارپذیری، کوچک‌سازی و آزمون رگرسیون}
+
+\subsection{بستهٔ بازتولید}
+
+به ازای هر خطای تأییدشده، ابزار یک بستهٔ بازتولید می‌سازد که شامل ورودی خطاساز،
+شناسهٔ دقیق \lr{commit}، هش باینری، تنظیمات ساخت، متغیرهای محیطی و دستور اجراست.
+
+\subsection{کوچک‌سازی خودکار ورودی}
+
+ورودی خطاساز با الگوریتم \codeword|ddmin| (حذف تدریجی بایت‌ها) به‌صورت خودکار کوچک
+می‌شود، به‌طوری که همان خطا با همان امضا حفظ شود. هم ورودی اولیه و هم ورودی کوچک‌شده
+ذخیره می‌شوند.
+
+\subsection{تولید خودکار آزمون رگرسیون}
+
+ورودی کوچک‌شده به مجموعهٔ آزمون‌های رگرسیون
+(\codeword|corpus/<target>/regressions/|) اضافه می‌شود و در اجراهای بعدی پایپ‌لاین
+دوباره بررسی می‌گردد.
+
+% ===================== سخت‌سازی =====================
+\section{بررسی سخت‌سازی باینری}
+
+ابزار وضعیت \lr{NX}، \lr{PIE}، \lr{RELRO} و \lr{Stack Canary} را با خروجی خام
+\codeword|readelf| در بیلد \lr{Release} بررسی می‌کند و اگر وصله به‌طور ناخواسته یکی از
+این محافظ‌ها را غیرفعال کند، هشدار می‌دهد (و این مانع صدور \lr{PASS} می‌شود). سطح
+\lr{RELRO} به‌صورت بدون محافظت/جزئی/کامل گزارش می‌شود.
+
+% ===================== اهداف =====================
+\section{اهداف و سناریوهای پچ}
+
+برای هر هدف چهار نسخه آماده شده است: \codeword|base| (آسیب‌پذیر)، \codeword|correct|
+(وصلهٔ درست)، \codeword|incomplete| (وصلهٔ ناقص) و \codeword|regression| (وصلهٔ مخرب
+عملکرد). علاوه بر این یک سناریوی \lr{New Issue} هم روی \codeword|tlvparse| اضافه شده
+است.
+
+\subsection{tlvparse — برنامهٔ خود گروه}
+
+یک تحلیل‌گر قالب \lr{TLV}. آسیب‌پذیری آن سرریز بافر هیپ در \codeword|copy\_value|
+است (کپی طول دلخواه در بافر ۳۲ بایتی).
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+نسخه & تغییر & خروجی مورد انتظار \\
+\midrule
+\codeword|base| & بدون بررسی طول & آسیب‌پذیر \\
+\codeword|correct| & بررسی طول در \codeword|copy\_value| & 0 (PASS) \\
+\codeword|incomplete| & بررسی طول فقط در \codeword|load\_name| & 10 (VULN\_REMAINS) \\
+\codeword|regression| & بررسی \codeword|>=| اشتباه که ورودی معتبر ۳۲ بایتی را رد می‌کند & 20 (REGRESSION) \\
+\codeword|new-issue| & رفع \codeword|copy\_value| ولی افزودن بافر ۸ بایتی در \codeword|load\_blob| & 10 (NEW\_ISSUE) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{giflib — پروژهٔ واقعی}
+
+برنامهٔ \codeword|gif2rgb| از کتابخانهٔ واقعی \lr{giflib}. آسیب‌پذیری
+\lr{CVE-2016-3977}: ایندکس رنگ زمینه بدون بررسی محدوده برای خواندن جدول رنگ استفاده
+می‌شود (\lr{heap-buffer-overflow READ}). نسخهٔ \codeword|base| کامیت \codeword|c9a54af|
+و \codeword|correct| کامیت \codeword|ea8dbc57| (وصلهٔ بالادستی) است.
+
+\subsection{libpng — کتابخانهٔ واقعی با وصلهٔ ناقص واقعی}
+
+این هدف به‌طور خاص سلسلهٔ «وصلهٔ ناقص سپس وصلهٔ کامل» را نشان می‌دهد:
+\begin{itemize}
+\item \lr{CVE-2015-8126}: \codeword|png\_set\_PLTE| اندازهٔ پالت را به عمق بیت محدود
+نمی‌کرد.
+\item \lr{CVE-2015-8472}: وصلهٔ ۱.۶.۱۹ ناقص بود (مسیر خواندن درست شد ولی
+\codeword|png\_set\_PLTE| هنوز \codeword|png\_ptr| را به‌جای \codeword|info\_ptr| چک
+می‌کرد) و در ۱.۶.۲۰ کامل شد.
+\end{itemize}
+نسخه‌ها: \codeword|base|=\lr{1.6.18}، \codeword|incomplete|=\lr{1.6.19}،
+\codeword|correct|=\lr{1.6.20}. هر نسخه \textbf{درخت کامل بالادستی} است (نه زیرمجموعهٔ
+دست‌چین‌شده).
+
+\subsection{bytecount و lineparse — نمونه‌های بی‌خطر}
+
+این دو فیچر برای خودآزمایی چارچوب هستند و همیشه خروجی 40 (شواهد ناکافی) می‌دهند.
+نتیجهٔ آن‌ها \textbf{تأیید رفع یک آسیب‌پذیری واقعی نیست} و این نکته در \lr{README} هر
+مخزن هم نوشته شده است.
+
+% ===================== CI =====================
+\section{اجرای خودکار در CI و وضعیت چک‌ها}
+
+\subsection{مخزن اصلی: خودآزمایی}
+
+فایل \codeword|.github/workflows/framework.yml| مخزن اصلی، کل ابزار را خودآزمایی
+می‌کند: هر سناریوی پچ باید خروجی مورد انتظارش را بدهد (مثلاً \codeword|incomplete|
+باید 10 بدهد). این خودآزمایی جدا از «پذیرش وصله» در مخازن هدف است.
+
+\subsection{مخازن هدف: گیت پذیرش}
+
+در هر مخزن هدف، پایپ‌لاین وصلهٔ \lr{PR} را ارزیابی می‌کند و چک فقط در صورتی سبز می‌شود
+که اجرا کامل و معتبر باشد و خروجی 0 باشد. کدهای 10/20/30/40 چک را قرمز می‌کنند و نوع
+نتیجه در پیام چک نمایش داده می‌شود. گزارش غایب/خراب یا کد ناشناخته هم هرگز سبز نمی‌شود.
+نتیجهٔ واقعی (0/10/20/30/40) از سبز/قرمز بودن چک جدا است: چک سبز یعنی «ارزیابی درست
+اجرا شد»، نه «وصله خوب است».
+
+کامیت ابزار در مخازن هدف پین شده است تا نسخهٔ ارزیابی ثابت بماند.
+
+% ===================== artifact =====================
+\section{ساختار artifact}
+
+هر اجرای پایپ‌لاین یک \lr{artifact} به نام \codeword|patchcheck-result| تولید می‌کند
+که ساختارش این است:
+
+\begin{latin}
+\begin{lstlisting}[language=Bash]
+artifacts/result/
+  report.json        # گزارش ساختاریافتهٔ JSON (خروجی مقرر)
+  summary.md         # گزارش خوانا برای انسان
+  config.json        # تنظیمات موثر (نسخه‌ها، دستور ساخت، محدودیت‌ها)
+  builds/            # هر ۴ بیلد (base/candidate × release/sanitized) + خروجی readelf
+  builds.json        # هش باینری، فلگ‌ها، نتیجهٔ ساخت
+  environment/       # پروب محیط (Linux x86_64، نسخهٔ gcc، ...)
+  inputs/            # ورودی‌های آزمون و خطاساز
+  runs/              # stdout/stderr/measurement هر اجرا
+  replays/           # بازپخش‌ها (≥۳ بار برای خطاهای تأییدشده)
+  sources/           # diff بین دو نسخه + درخت دقیق commitها
+  bundles/           # بستهٔ بازتولید (reproduction.tar.gz)
+\end{lstlisting}
+\end{latin}
+
+گزارش‌ها به فایل‌های داخل خود \lr{artifact} ارجاع می‌دهند، نه به مسیرهای بیرون از آن.
+شواهد حتی در صورت شکست پایپ‌لاین هم ذخیره می‌شوند.
+
+% ===================== راهنمای اجرا =====================
+\section{راهنمای اجرای مستقل}
+
+\begin{latin}
+\begin{lstlisting}[language=Bash]
+# 1) نصب وابستگی‌ها (آفلاین از wheelهای همراه)
+python3 -m venv .venv && .venv/bin/python ci/bootstrap.py
+
+# 2) ساخت مخازن fixture از پوشه targets/
+python3 tools/setup_fixtures.py
+
+# 3) ساخت تصویر ابزارزنجیره (Linux x86_64)
+docker build --platform linux/amd64 -t patchcheck-framework:1.0 \
+    -f environment/Dockerfile .
+
+# 4) ارزیابی یک وصله
+.venv/bin/patchcheck run configs/tlvparse-file.json --candidate incomplete --out artifacts/r
+
+# 5) وصلهٔ نادیده (فایل diff)
+.venv/bin/patchcheck run configs/giflib-file.json --patch /path/to/patch.diff --out artifacts/r
+
+# 6) بازپخش / کوچک‌سازی / بسته‌بندی
+.venv/bin/patchcheck replay  artifacts/r/report.json --test poc-long-blob --count 3
+.venv/bin/patchcheck minimize artifacts/r/report.json --test poc-long-blob
+.venv/bin/patchcheck bundle   artifacts/r/report.json --out reproduction.tar.gz
+\end{lstlisting}
+\end{latin}
+
+% ===================== موارد دمو =====================
+\section{موارد مهم برای روز دمو}
+
+\begin{itemize}
+\item \textbf{اجرای پویا}: نشان دهید که با خروجی \codeword|runs/| واقعاً باینری داخل
+کانتینر اجرا می‌شود (نه تحلیل ایستا). خروجی \lr{ASan} در \codeword|runs/| برای بیلد
+\codeword|sanitized| قابل نمایش است.
+\item \textbf{چهار سناریو}: برای هر هدف، خروجی 0/10/20 برای
+\codeword|correct|/\codeword|incomplete|/\codeword|regression| را نشان دهید و توضیح
+دهید که چرا \codeword|incomplete| قرمز (10) است ولی یافته «ناقص» است.
+\item \textbf{New Issue}: روی \codeword|tlvparse| شاخهٔ \codeword|new-issue| و ورودی
+شاهد \codeword|poc-blob-new| را نشان دهید (پایه پاک، وصله خطای جدید).
+\item \textbf{وصلهٔ نادیده}: با \codeword|--patch| یک \lr{diff} دلخواه را زنده ارزیابی
+کنید.
+\item \textbf{همبستگی}: توضیح دهید که \lr{confirmed} فقط برای خطِ \lr{crash} روی خطِ
+تغییر است و بقیه \lr{candidate}/\lr{unknown} می‌ماند.
+\item \textbf{سخت‌سازی}: خروجی \codeword|readelf| و مقایسهٔ NX/PIE/RELRO/canary را نشان
+دهید.
+\item \textbf{کوچک‌سازی و بازپخش}: اجرای \codeword|minimize| و \codeword|replay| را
+نشان دهید.
+\end{itemize}
+
+% ===================== جمع‌بندی =====================
+\section{جمع‌بندی}
+
+ابزار \lr{Patchcheck} همهٔ بندهای صورت‌پروژه را پوشش می‌دهد: اجرای واقعی برنامهٔ هدف،
+مقایسهٔ دو نسخه، پیوند یافته به تغییرات با شواهد واقعی، تفکیک چهار دسته یافته،
+طبقه‌بندی خطا با تفکیک بیلد عادی/ابزارگذاری‌شده، تکرارپذیری و کوچک‌سازی، بررسی
+سخت‌سازی باینری، و کدهای خروج استاندارد. ابزار روی پنج هدف مستقل آزمایش شده و
+خروجی‌های واقعی آن‌ها با انتظار صورت‌پروژه مطابقت دارد.
+
+
+\end{document}
