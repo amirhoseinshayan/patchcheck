@@ -52,6 +52,20 @@ def short_name(function):
 
 def blank(text):
     """Replace comments, string/char literals and preprocessor lines with spaces (newlines kept)."""
+    return _blank_literals(text, preprocessor=True)
+
+
+def blank_comments_and_strings(text):
+    """Replace only comments and string/char literals with spaces (newlines kept).
+
+    Unlike `blank`, preprocessor lines are kept, so a macro mentioned only in a
+    comment or string is NOT detected as a use, while `#if defined(NAME)` / `#ifdef`
+    uses still are.
+    """
+    return _blank_literals(text, preprocessor=False)
+
+
+def _blank_literals(text, preprocessor):
     out, i, n = list(text), 0, len(text)
     line_start = True
     while i < n:
@@ -59,7 +73,7 @@ def blank(text):
         if line_start and c in ' \t':
             i += 1
             continue
-        if line_start and c == '#':                       # preprocessor line incl. continuations
+        if preprocessor and line_start and c == '#':       # preprocessor line incl. continuations
             while i < n and text[i] != '\n':
                 if text[i] == '\\' and i + 1 < n and text[i + 1] == '\n':
                     out[i] = ' '
@@ -179,16 +193,19 @@ def references(tree, functions, macros):
     call = re.compile(r'\b(' + '|'.join(map(re.escape, callers)) + r')\s*\(') if callers else None
     use = re.compile(r'\b(' + '|'.join(map(re.escape, users)) + r')\b') if users else None
     for file, text in code_files(tree):
-        raw_lines, code_lines = text.splitlines(), blank(text).splitlines()
+        code_lines = blank(text).splitlines()
+        literal_lines = blank_comments_and_strings(text).splitlines()
         for span in function_spans(text):
             body_code = '\n'.join(code_lines[span['start'] - 1:span['end']])
-            body_raw = '\n'.join(raw_lines[span['start'] - 1:span['end']])  # macros may hide in #if lines
+            # Macro uses are detected on comments/strings-blanked text so a macro
+            # name inside a comment is never counted; preprocessor lines are kept.
+            body_literal = '\n'.join(literal_lines[span['start'] - 1:span['end']])
             where = {'file': file, 'function': span['name']}
             for name in sorted(set(call.findall(body_code))) if call else ():
                 calls = len(re.findall(r'\b' + re.escape(name) + r'\s*\(', body_code))
                 if name != span['short'] or calls > 1:   # the header itself is not a call
                     callers[name].append(where)
-            for name in sorted(set(use.findall(body_raw))) if use else ():
+            for name in sorted(set(use.findall(body_literal))) if use else ():
                 users[name].append(where)
     return callers, users
 

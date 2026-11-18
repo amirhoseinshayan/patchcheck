@@ -854,6 +854,7 @@
         "relation": {
           "enum": [
             "confirmed",
+            "candidate",
             "unknown",
             "rejected"
           ]

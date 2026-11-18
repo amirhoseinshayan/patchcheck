@@ -584,7 +584,14 @@ def functional_coverage_relation(finding, hunks, coverage_runs, base, candidate,
 
 
 def correlate(diff, findings, paired_runs):
-    """One PatchRelation per finding: confirmed / rejected / unknown with the evidence used."""
+    """One PatchRelation per finding: confirmed / candidate / unknown with the evidence used.
+
+    `confirmed` is reserved for a direct data/control-flow link (the crashing
+    frame line is itself a changed line). Mere presence — a changed function on
+    the failing stack or a changed macro used by a stack function — is a
+    `candidate` and never auto-confirms. A changed callee reachable only
+    statically is reported as evidence but stays off the stack (unknown).
+    """
     hunks = (diff or {}).get('hunks') or []
     graph = (diff or {}).get('source_map') or {}
     runs = {run['id']: run for run in paired_runs}
@@ -633,22 +640,37 @@ def correlate(diff, findings, paired_runs):
         crash_site = next((f for role, _, f in path if role == 'crash-site'), None)
         site = f'{crash_site["project_file"]}:{crash_site["function"]}' if crash_site else 'unknown'
 
+        # Evidence is graded, not boolean. The only static proof of a data/control-flow
+        # link is the crashing frame line being itself a changed line; every other
+        # overlap *on the failing stack* (a changed function on the stack, a changed
+        # macro used by a stack function) is a *candidate* and never auto-confirms.
+        # A changed callee that is only statically reachable (sibling) is reported as
+        # evidence but stays off the stack, so it does not even make a candidate.
+        confirmed = [l for l in on_path if l['role'] == 'crash-site' and l.get('on_changed_line')]
+        candidates = [l for l in on_path if l not in confirmed]
+
         if status == 'Inconclusive':
             value = 'unknown'
             evidence.append('the finding itself is inconclusive')
-        elif on_path:
+        elif confirmed:
             value = 'confirmed'
-            evidence.append({'Fixed': f'the same input crashes base at {site} and not the candidate',
-                             'Incomplete Fix': f'the patch changes the failing path but the same failure at {site} '
-                                               f'persists on the candidate',
-                             'New Issue': f'the same input does not show this failure on base; the candidate '
-                                          f'fails at {site}'}.get(status, f'failure at {site}'))
+            evidence.append({f'Fixed': f'the change is at the crash site {site}: the crashing frame line is '
+                                      f'itself a changed line, tying the change to the prevented failure',
+                             'Incomplete Fix': f'the change is at the crash site {site}: the crashing frame line '
+                                               f'is itself a changed line and the same failure persists',
+                             'New Issue': f'the change is at the crash site {site}: the crashing frame line is '
+                                          f'itself a changed line on the candidate'}.get(
+                                 status, f'the change is at the crash site {site}'))
+        elif candidates:
+            value = 'candidate'
+            evidence.append('a changed function or macro appears on or near the failing path, but the '
+                            'static evidence does not establish a data or control-flow link between the '
+                            'specific change and the failure; the finding status is independent of this '
+                            'candidate relation')
         elif status == 'Incomplete Fix' and not unmapped and stack_complete(obs) and \
                 cand_path and stack_complete(cand_obs):
-            # No changed function is on the failing stack (callee/sibling evidence is
-            # listed separately). A stack that reaches main still does not record
-            # functions that ran and returned earlier, so this is not enough to
-            # *reject* the relation: report unknown rather than overclaim.
+            # No changed function is on the failing stack and the stack is complete
+            # down to main; absence from the stack still never *rejects* the relation.
             value = 'unknown'
             evidence.append(f'the failure at {site} persists on the candidate and no hunk changes a function on its '
                             f'stack (complete down to main); a changed function may still have run and returned '

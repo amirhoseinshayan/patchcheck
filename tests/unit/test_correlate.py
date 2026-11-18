@@ -8,7 +8,7 @@ from pathlib import Path
 from _tmp import tmpdir
 from patchcheck.analysis import analyze, correlate
 from patchcheck.source import parse_hunks
-from patchcheck.sourcemap import annotate, function_spans, short_name
+from patchcheck.sourcemap import annotate, function_spans, references, short_name
 
 ROOT = Path(__file__).resolve().parents[2]
 TLV = ROOT / 'targets' / 'tlvparse'
@@ -105,6 +105,36 @@ class SourceMapTests(unittest.TestCase):
                          {('base', 'copy_value'), ('candidate', 'copy_value')})
 
 
+class MacroUseTests(unittest.TestCase):
+    def test_macro_name_in_comment_or_string_is_not_a_use(self):
+        with tmpdir() as tmp:
+            (tmp / 'p.c').write_text(
+                'int f(void) {\n'
+                '    /* MAX_VALUE is the limit */\n'
+                '    const char *s = "MAX_VALUE";\n'
+                '    return 0;\n'
+                '}\n'
+                'int g(void) {\n'
+                '    return MAX_VALUE;\n'
+                '}\n')
+            (tmp / 'h.h').write_text('#define MAX_VALUE 32\n')
+            _, users = references(tmp, set(), {'MAX_VALUE'})
+        self.assertEqual(users['MAX_VALUE'], [{'file': 'p.c', 'function': 'g'}])
+
+    def test_macro_in_preprocessor_condition_is_a_use(self):
+        with tmpdir() as tmp:
+            (tmp / 'p.c').write_text(
+                'int f(void) {\n'
+                '#if defined(MAX_VALUE)\n'
+                '    return MAX_VALUE;\n'
+                '#else\n'
+                '    return 0;\n'
+                '#endif\n'
+                '}\n')
+            _, users = references(tmp, set(), {'MAX_VALUE'})
+        self.assertEqual(users['MAX_VALUE'], [{'file': 'p.c', 'function': 'f'}])
+
+
 # --- relation rules ----------------------------------------------------------
 
 def asan_stack(*functions, file='tlvparse.c'):
@@ -126,9 +156,9 @@ def run(run_id, version, build='sanitized', stderr=None):
     return record
 
 
-def hunk(function, *, unmapped=False, defines=(), file='tlvparse.c'):
-    return {'id': 'h1', 'file': file, 'old_file': file, 'removed': [], 'added': [12], 'defines': list(defines),
-            'define_lines': {'base': [], 'candidate': []}, 'unmapped': unmapped,
+def hunk(function, *, unmapped=False, defines=(), file='tlvparse.c', added=(12,), removed=()):
+    return {'id': 'h1', 'file': file, 'old_file': file, 'removed': list(removed), 'added': list(added),
+            'defines': list(defines), 'define_lines': {'base': [], 'candidate': []}, 'unmapped': unmapped,
             'functions': [{'version': side, 'file': file, 'function': function, 'short': function,
                            'start': 5, 'end': 25} for side in ('base', 'candidate')] if function else []}
 
@@ -143,19 +173,33 @@ PATH = ('copy_value', 'load_blob', 'parse', 'main')
 
 
 class RelationTests(unittest.TestCase):
-    def test_fix_on_the_crash_site_is_confirmed(self):
-        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'), [hunk('copy_value')])
+    def test_crash_site_on_changed_line_is_confirmed(self):
+        # The crashing frame line (10) is itself a changed line (removed on the
+        # base side for a Fixed finding): a direct data/control-flow link, the only
+        # static evidence that confirms.
+        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'),
+                     [hunk('copy_value', removed=(10,))])
         self.assertEqual(rel['relation'], 'confirmed')
         self.assertEqual(rel['hunk_ids'], ['h1'])
         self.assertIn('crash-site', {l['role'] for l in rel['locations']})
 
-    def test_fix_in_a_caller_is_confirmed_as_caller(self):
-        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'), [hunk('load_blob')])
-        self.assertEqual(rel['relation'], 'confirmed')
+    def test_fix_in_the_crash_site_function_is_candidate(self):
+        # The changed function is the crash site, but the crashing line is not a
+        # changed line: presence on the stack is only a candidate, never confirmed.
+        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'),
+                     [hunk('copy_value')])
+        self.assertEqual(rel['relation'], 'candidate')
+        self.assertIn('crash-site', {l['role'] for l in rel['locations']})
+
+    def test_fix_in_a_caller_is_candidate(self):
+        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'),
+                     [hunk('load_blob')])
+        self.assertEqual(rel['relation'], 'candidate')
         self.assertEqual([l['role'] for l in rel['locations']], ['caller'])
 
     def test_fix_off_the_stack_is_unknown_not_rejected(self):
-        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'), [hunk('load_name')])
+        rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'),
+                     [hunk('load_name')])
         self.assertEqual(rel['relation'], 'unknown')
 
     def test_incomplete_fix_off_the_failing_path_is_unknown_with_sibling_evidence(self):
@@ -180,24 +224,24 @@ class RelationTests(unittest.TestCase):
                      [hunk(None, unmapped=True)])
         self.assertEqual(rel['relation'], 'unknown')
 
-    def test_incomplete_fix_touching_the_path_is_confirmed(self):
+    def test_incomplete_fix_touching_the_path_is_candidate(self):
         crash = asan_stack(*PATH)
         rel = relate('Incomplete Fix', run('b', 'base', stderr=crash), run('c', 'candidate', stderr=crash),
                      [hunk('load_blob')])
-        self.assertEqual(rel['relation'], 'confirmed')
+        self.assertEqual(rel['relation'], 'candidate')
 
-    def test_new_issue_uses_the_candidate_stack(self):
+    def test_new_issue_uses_the_candidate_stack_and_is_candidate(self):
         rel = relate('New Issue', run('b', 'base'), run('c', 'candidate', stderr=asan_stack(*PATH)),
                      [hunk('copy_value')])
-        self.assertEqual(rel['relation'], 'confirmed')
+        self.assertEqual(rel['relation'], 'candidate')
         self.assertEqual({l['version'] for l in rel['locations']}, {'candidate'})
 
-    def test_changed_macro_used_on_the_stack_is_confirmed(self):
+    def test_changed_macro_used_on_the_stack_is_candidate(self):
         graph = {v: {'callers': {}, 'macro_users': {'MAX_VALUE': [{'file': 'tlvparse.c', 'function': 'copy_value'}]}}
                  for v in ('base', 'candidate')}
         rel = relate('Fixed', run('b', 'base', stderr=asan_stack(*PATH)), run('c', 'candidate'),
                      [hunk(None, defines=['MAX_VALUE'])], graph)
-        self.assertEqual(rel['relation'], 'confirmed')
+        self.assertEqual(rel['relation'], 'candidate')
         self.assertEqual(rel['locations'][0]['role'], 'uses-changed-macro')
 
     def test_release_without_stack_stays_unknown_and_points_to_sanitized_pair(self):
@@ -209,8 +253,8 @@ class RelationTests(unittest.TestCase):
                     {'id': 'f-sanitized', 'status': 'Fixed', 'base_run_ids': ['bs'], 'candidate_run_ids': ['cs']}]
         rels = correlate({'hunks': hunks, 'source_map': graph}, findings,
                          [release, sanitized, run('cr', 'candidate', 'release'), run('cs', 'candidate')])
-        self.assertEqual([r['relation'] for r in rels], ['unknown', 'confirmed'])
-        self.assertIn('f-sanitized is confirmed', rels[0]['evidence'][-1])
+        self.assertEqual([r['relation'] for r in rels], ['unknown', 'candidate'])
+        self.assertIn('f-sanitized is candidate', rels[0]['evidence'][-1])
 
     def test_functional_regression_and_missing_source_map_are_unknown(self):
         rel = relate('Functional Regression', run('b', 'base'), run('c', 'candidate'), [hunk('copy_value')])
