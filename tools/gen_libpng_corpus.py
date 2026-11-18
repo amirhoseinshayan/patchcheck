@@ -4,10 +4,12 @@ Every PNG here is built byte by byte from the PNG specification, and every
 expected result is computed from the specification and the documented libpng
 behaviour (see oracles/libpng/SPEC.md) -- never by running pnginfo.
 
-Target: the CVE-2015-8126 heap-buffer-overflow (and its incomplete fix
-CVE-2015-8472) in libpng's png_set_PLTE / png_get_PLTE, which did not clamp the
-palette size to the image bit depth. A palette PNG with a small bit depth
-(1/2/4) can therefore carry up to 256 PLTE entries.
+Target: CVE-2015-8126 and its incomplete fix CVE-2015-8472. libpng's
+png_set_PLTE / png_get_PLTE did not clamp the palette size to the bit depth.
+`pnginfo` reads a palette PNG and then re-encodes it through png_set_PLTE with a
+256-entry palette; for a small bit depth (1/2/4) that palette is larger than the
+correct maximum (1 << bit_depth) and must be rejected, but the vulnerable and
+incompletely-fixed builds accept it and then overflow a correctly-sized buffer.
 
 Run: python3 tools/gen_libpng_corpus.py
 """
@@ -49,14 +51,17 @@ def oracle(section, exit_code, stdout=b"", stderr=b""):
     }
 
 
+# (id, category, input bytes, correct stdout, correct stderr, exit code, section)
 CASES = [
-    ("valid-bit8", "valid", png(8, 256), b"OK 1 1 8 3 256\n", b"", 0, "Rendering"),
-    ("valid-bit1", "valid", png(1, 2), b"OK 1 1 1 3 2\n", b"", 0, "Rendering"),
-    ("boundary-bit4-max", "boundary", png(4, 16), b"OK 1 1 4 3 16\n", b"", 0, "Rendering"),
+    ("valid-bit8", "valid", png(8, 128), b"OK 1 1 8 3 256\n", b"", 0, "Rendering"),
+    ("boundary-bit8-max", "boundary", png(8, 256), b"OK 1 1 8 3 256\n", b"", 0, "Rendering"),
     ("invalid-no-plte", "invalid", png(1, 0, plte=False), b"", b"png error\n", 1, "Errors"),
     ("invalid-bad-depth", "invalid", png(16, 2), b"", b"png error\n", 1, "Errors"),
-    ("poc-bit1-256pal", "original", png(1, 256), b"OK 1 1 1 3 2\n", b"", 0, "Security property"),
-    ("poc-bit2-256pal", "original", png(2, 256), b"OK 1 1 2 3 4\n", b"", 0, "Security property"),
+    # Security PoCs: a small bit depth where the re-encoded 256-entry palette
+    # exceeds 1 << bit_depth. The correct build rejects it (png error); the
+    # vulnerable and incompletely-fixed builds accept it and overflow.
+    ("poc-bit1-256pal", "original", png(1, 256), b"", b"png error\n", 1, "Security property"),
+    ("poc-bit2-256pal", "original", png(2, 256), b"", b"png error\n", 1, "Security property"),
 ]
 
 

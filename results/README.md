@@ -41,7 +41,7 @@ validated `report.json`. The reports carry the replay evidence (`replays`,
 | `giflib-regression` | giflib `gif2rgb`, CVE-2016-3977 | 20 FUNC_REGRESSION | 5 |
 | `libpng-correct` | libpng `pnginfo`, CVE-2015-8126/8472 | 0 PASS | 2 |
 | `libpng-incomplete` | libpng `pnginfo`, CVE-2015-8126/8472 | 10 VULN_REMAINS | 2 |
-| `libpng-regression` | libpng `pnginfo`, CVE-2015-8126/8472 | 20 FUNC_REGRESSION | 3 |
+| `libpng-regression` | libpng `pnginfo`, CVE-2015-8126/8472 | 20 FUNC_REGRESSION | 4 |
 | `bytecount` | harmless fixture (self-test) | 40 INCONCLUSIVE | 0 |
 | `lineparse` | harmless fixture (self-test) | 40 INCONCLUSIVE | 0 |
 

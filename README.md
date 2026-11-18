@@ -186,10 +186,12 @@ version.
 The third target is the real libpng library with **CVE-2015-8126** and its
 incomplete fix **CVE-2015-8472**. `png_set_PLTE` / `png_get_PLTE` did not clamp
 the palette size to the image bit depth, so a palette PNG with bit depth 1/2/4
-can carry up to 256 PLTE entries. The `pnginfo` driver sizes a buffer from the
-correct maximum (`1 << bit_depth`) and copies the reported palette, overflowing
-on the vulnerable build. `base` is libpng 1.6.18; `correct` applies the
-security-relevant hunks of the real 1.6.19 fix.
+can carry up to 256 PLTE entries. The `pnginfo` driver reads a palette PNG and
+re-encodes it through `png_set_PLTE` with a 256-entry palette, then copies the
+reported palette into a buffer sized for the correct maximum (`1 << bit_depth`),
+overflowing on the vulnerable build. `base` is libpng 1.6.18; `incomplete` is the
+real 1.6.19 (its read-path fix is complete but `png_set_PLTE` still checks
+`png_ptr` instead of `info_ptr`, i.e. CVE-2015-8472); `correct` is 1.6.20.
 
 ```bash
 .venv/bin/patchcheck run configs/libpng-file.json --candidate incomplete --out artifacts/libpng-incomplete
@@ -197,10 +199,10 @@ security-relevant hunks of the real 1.6.19 fix.
 
 | libpng version | Change | Expected final verdict |
 |---|---|---|
-| `base` | palette size is not clamped to the bit depth (up to 256 entries) | vulnerable |
-| `correct` | `png_handle_PLTE`/`png_set_PLTE` clamp to `1 << bit_depth` | 0 PASS |
-| `incomplete` | clamp only for the observed bit-depth-1 case; bit depths 2/4 still accept an oversized palette | 10 VULN_REMAINS |
-| `regression` | fix plus an over-strict clamp that truncates valid 8-bit (256-entry) palettes to 128 | 20 FUNC_REGRESSION |
+| `base` (1.6.18) | palette size is not clamped to the bit depth (up to 256 entries) | vulnerable |
+| `correct` (1.6.20) | `png_handle_PLTE` and `png_set_PLTE` clamp to `1 << bit_depth` | 0 PASS |
+| `incomplete` (1.6.19) | the real incomplete fix: read path fixed, but `png_set_PLTE` still uses `png_ptr` so the API path still accepts 256 entries | 10 VULN_REMAINS |
+| `regression` (1.6.20 + edit) | fix plus an over-strict clamp that truncates valid 8-bit (256-entry) palettes to 128 | 20 FUNC_REGRESSION |
 
 Spec: `oracles/libpng/SPEC.md`. Inputs (byte-built PNGs) and oracles are
 generated from it by `tools/gen_libpng_corpus.py`. libpng source is **not**

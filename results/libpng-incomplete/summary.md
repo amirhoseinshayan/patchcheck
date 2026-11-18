@@ -2,8 +2,8 @@
 
 **Verdict: 10 VULN_REMAINS / NEW_ISSUE**
 
-Versions: base `d064d326ba` → candidate `1cde54c70f`
-Builds: 4; tests: 7; executions: 52.
+Versions: base `74b41dbf3b` → candidate `cd88a8fc3c`
+Builds: 4; tests: 6; executions: 48.
 
 | Axis | Result |
 |---|---|
@@ -15,10 +15,8 @@ Builds: 4; tests: 7; executions: 52.
 
 | Status | Error type | Detection | Location | Evidence | Replay | Id |
 |---|---|---|---|---|---|---|
-| Fixed | heap-corruption | glibc-malloc-check | - | confirmed | stable | finding-security-poc-bit1-256pal-release |
-| Fixed | heap-buffer-overflow | asan | pnginfo.c:29 in copy_palette | confirmed | stable | finding-security-poc-bit1-256pal-sanitized |
-| Incomplete Fix | heap-corruption | glibc-malloc-check | - | confirmed | stable | finding-security-poc-bit2-256pal-release |
-| Incomplete Fix | heap-buffer-overflow | asan | pnginfo.c:29 in copy_palette | confirmed | stable | finding-security-poc-bit2-256pal-sanitized |
+| Incomplete Fix | heap-buffer-overflow | asan | pnginfo.c:25 in copy_palette | confirmed | stable | finding-security-poc-bit1-256pal-sanitized |
+| Incomplete Fix | heap-buffer-overflow | asan | pnginfo.c:25 in copy_palette | confirmed | stable | finding-security-poc-bit2-256pal-sanitized |
 
 ## Patch correlation
 
@@ -26,10 +24,8 @@ Confirmed relationships cite a relevant stack frame or a covered changed line in
 
 | Finding | Status | Relation | Hunks | Evidence |
 |---|---|---|---|---|
-| finding-security-poc-bit1-256pal-release | Fixed | **unknown** | - | the base release run has no symbolized in-program stack (see the sanitized pair) |
-| finding-security-poc-bit1-256pal-sanitized | Fixed | **unknown** | - | the crash at pnginfo.c:copy_palette disappeared, but no changed function is on its stack; the fix may act through code that returned before the crash |
-| finding-security-poc-bit2-256pal-release | Incomplete Fix | **unknown** | - | the base release run has no symbolized in-program stack (see the sanitized pair) |
-| finding-security-poc-bit2-256pal-sanitized | Incomplete Fix | **unknown** | - | the failure at pnginfo.c:copy_palette persists on the candidate and no hunk changes a function on its stack (complete down to main); a changed function may still have run and returned earlier, so the relation cannot be rejected from the stack alone |
+| finding-security-poc-bit1-256pal-sanitized | Incomplete Fix | **confirmed** | h23, h79 | h23 changes macro PNG_LIBPNG_VER_STRING used by pnginfo.c:main (frame #2, base); h23 changes macro PNG_LIBPNG_VER_STRING used by pnginfo.c:main (frame #2, candidate); h79 changes pngset.c:png_set_PLTE, called from main on the stack but not itself on the failing stack; hunks outside any function (not mapped): h2, h23, h28, h29, h30, h33, h34, h35, h38, h41, h42, h43, h44, h45; the patch changes the failing path but the same failure at pnginfo.c:copy_palette persists on the candidate |
+| finding-security-poc-bit2-256pal-sanitized | Incomplete Fix | **confirmed** | h23, h79 | h23 changes macro PNG_LIBPNG_VER_STRING used by pnginfo.c:main (frame #2, base); h23 changes macro PNG_LIBPNG_VER_STRING used by pnginfo.c:main (frame #2, candidate); h79 changes pngset.c:png_set_PLTE, called from main on the stack but not itself on the failing stack; hunks outside any function (not mapped): h2, h23, h28, h29, h30, h33, h34, h35, h38, h41, h42, h43, h44, h45; the patch changes the failing path but the same failure at pnginfo.c:copy_palette persists on the candidate |
 
 ## Binary hardening (release builds)
 
@@ -47,13 +43,13 @@ Status: out-of-scope = not minimizable; supported = minimizable but not run; red
 
 | Finding | Status | Covered | Registered | Minimized test | Reason |
 |---|---|---|---|---|---|
-| finding-security-poc-bit1-256pal-release | out-of-scope | no | no | - | release finding has no symbolized location |
 | finding-security-poc-bit1-256pal-sanitized | supported | yes | no | - | test has a matchable signature reproduced on the sanitized base |
-| finding-security-poc-bit2-256pal-release | out-of-scope | no | no | - | release finding has no symbolized location |
 | finding-security-poc-bit2-256pal-sanitized | supported | yes | no | - | test has a matchable signature reproduced on the sanitized base |
 
 ## Why the analysis is not complete
 
+- security-input-oracle: poc-bit1-256pal (release) candidate=fail
+- security-input-oracle: poc-bit1-256pal (sanitized) candidate=fail
 - security-input-oracle: poc-bit2-256pal (release) candidate=fail
 - security-input-oracle: poc-bit2-256pal (sanitized) candidate=fail
 
@@ -72,16 +68,14 @@ Status: out-of-scope = not minimizable; supported = minimizable but not run; red
 |---|---|---|---|---|
 | valid-bit8 | release | pass | pass | preserved |
 | valid-bit8 | sanitized | pass | pass | preserved |
-| valid-bit1 | release | pass | pass | preserved |
-| valid-bit1 | sanitized | pass | pass | preserved |
-| boundary-bit4-max | release | pass | pass | preserved |
-| boundary-bit4-max | sanitized | pass | pass | preserved |
+| boundary-bit8-max | release | pass | pass | preserved |
+| boundary-bit8-max | sanitized | pass | pass | preserved |
 | invalid-no-plte | release | pass | pass | preserved |
 | invalid-no-plte | sanitized | pass | pass | preserved |
 | invalid-bad-depth | release | pass | pass | preserved |
 | invalid-bad-depth | sanitized | pass | pass | preserved |
-| poc-bit1-256pal | release | fail | pass | baseline_fail |
-| poc-bit1-256pal | sanitized | fail | pass | baseline_fail |
+| poc-bit1-256pal | release | fail | fail | both_fail |
+| poc-bit1-256pal | sanitized | fail | fail | both_fail |
 | poc-bit2-256pal | release | fail | fail | both_fail |
 | poc-bit2-256pal | sanitized | fail | fail | both_fail |
 
@@ -89,9 +83,7 @@ Status: out-of-scope = not minimizable; supported = minimizable but not run; red
 
 | Test | Version | Build | Error type | Detection | Termination | Access | Location | Evidence |
 |---|---|---|---|---|---|---|---|---|
-| poc-bit1-256pal | base | release | heap-corruption | glibc-malloc-check | SIGABRT | - | - | confirmed |
-| poc-bit1-256pal | base | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:29 in copy_palette | confirmed |
-| poc-bit2-256pal | base | release | heap-corruption | glibc-malloc-check | SIGABRT | - | - | confirmed |
-| poc-bit2-256pal | base | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:29 in copy_palette | confirmed |
-| poc-bit2-256pal | candidate | release | heap-corruption | glibc-malloc-check | SIGABRT | - | - | confirmed |
-| poc-bit2-256pal | candidate | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:29 in copy_palette | confirmed |
+| poc-bit1-256pal | base | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:25 in copy_palette | confirmed |
+| poc-bit1-256pal | candidate | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:25 in copy_palette | confirmed |
+| poc-bit2-256pal | base | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:25 in copy_palette | confirmed |
+| poc-bit2-256pal | candidate | sanitized | heap-buffer-overflow | asan | SIGABRT | WRITE 768 | pnginfo.c:25 in copy_palette | confirmed |

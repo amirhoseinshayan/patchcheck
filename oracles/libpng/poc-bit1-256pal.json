@@ -4,13 +4,13 @@
     "source": "oracles/libpng/SPEC.md#Security property",
     "independent": true
   },
-  "exit_code": 0,
+  "exit_code": 1,
   "stdout": {
     "mode": "exact",
-    "base64": "T0sgMSAxIDEgMyAyCg=="
+    "base64": ""
   },
   "stderr": {
     "mode": "exact",
-    "base64": ""
+    "base64": "cG5nIGVycm9yCg=="
   }
 }

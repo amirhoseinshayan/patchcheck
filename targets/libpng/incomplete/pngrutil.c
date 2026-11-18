@@ -1,7 +1,7 @@
 
 /* pngrutil.c - utilities to read a PNG file
  *
- * Last changed in libpng 1.6.18 [July 23, 2015]
+ * Last changed in libpng 1.6.19 [November 12, 2015]
  * Copyright (c) 1998-2015 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -89,7 +89,13 @@ png_get_int_32)(png_const_bytep buf)
       return uval;
 
    uval = (uval ^ 0xffffffff) + 1;  /* 2's complement: -x = ~x+1 */
-   return -(png_int_32)uval;
+   if ((uval & 0x80000000) == 0) /* no overflow */
+       return -(png_int_32)uval;
+   /* The following has to be safe; this function only gets called on PNG data
+    * and if we get here that data is invalid.  0 is the most safe value and
+    * if not then an attacker would surely just generate a PNG with 0 instead.
+    */
+   return 0;
 }
 
 /* Grab an unsigned 16-bit integer from a buffer in big-endian format. */
@@ -98,7 +104,7 @@ png_get_uint_16)(png_const_bytep buf)
 {
    /* ANSI-C requires an int value to accomodate at least 16 bits so this
     * works and allows the compiler not to worry about possible narrowing
-    * on 32 bit systems.  (Pre-ANSI systems did not make integers smaller
+    * on 32-bit systems.  (Pre-ANSI systems did not make integers smaller
     * than 16 bits either.)
     */
    unsigned int val =
@@ -927,12 +933,13 @@ png_handle_PLTE(png_structrp png_ptr, png_inforp info_ptr, png_uint_32 length)
    /* The cast is safe because 'length' is less than 3*PNG_MAX_PALETTE_LENGTH */
    num = (int)length / 3;
 
-   /* Incomplete fix: only block the observed bit-depth-1 palette overflow;
-    * bit depths 2 and 4 are not clamped, so a different input still reads
-    * an oversized palette (mirrors CVE-2015-8472's incomplete fix).
+   /* If the palette has 256 or fewer entries but is too large for the bit
+    * depth, we don't issue an error, to preserve the behavior of previous
+    * libpng versions. We silently truncate the unused extra palette entries
+    * here.
     */
-   if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE && png_ptr->bit_depth == 1)
-      max_palette_length = 2;
+   if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE)
+      max_palette_length = (1 << png_ptr->bit_depth);
    else
       max_palette_length = PNG_MAX_PALETTE_LENGTH;
 
@@ -1830,7 +1837,7 @@ png_handle_tRNS(png_structrp png_ptr, png_inforp info_ptr, png_uint_32 length)
          return;
       }
 
-      if (length > png_ptr->num_palette ||
+      if (length > (unsigned int) png_ptr->num_palette ||
          length > (unsigned int) PNG_MAX_PALETTE_LENGTH ||
          length == 0)
       {
@@ -1994,7 +2001,8 @@ png_handle_hIST(png_structrp png_ptr, png_inforp info_ptr, png_uint_32 length)
 
    num = length / 2 ;
 
-   if (num != png_ptr->num_palette || num > (unsigned int) PNG_MAX_PALETTE_LENGTH)
+   if (num != (unsigned int) png_ptr->num_palette ||
+       num > (unsigned int) PNG_MAX_PALETTE_LENGTH)
    {
       png_crc_finish(png_ptr, length);
       png_chunk_benign_error(png_ptr, "invalid");

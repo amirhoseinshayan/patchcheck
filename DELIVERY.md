@@ -115,16 +115,17 @@ The full repository layout is:
 
 - Added a third real target, **libpng** (`pnginfo`), covering CVE-2015-8126 and
   its incomplete fix CVE-2015-8472 (`png_set_PLTE` / `png_get_PLTE` did not clamp
-  the palette size to the bit depth). `targets/libpng/` holds `base` (1.6.18),
-  `correct`, `incomplete` and `regression`; `configs/libpng-file.json`,
-  `corpus/libpng/`, `oracles/libpng/` and `tools/gen_libpng_corpus.py` were added.
-  The environment image now installs `zlib1g-dev` (libpng links `-lz`/`-lm`).
-- The three patch scenarios return the expected verdicts: `correct` → 0,
-  `incomplete` → 10 (the observed bit-depth-1 PoC is blocked but a different
-  bit-depth-2 input still overflows) and `regression` → 20 (a valid 8-bit palette
-  is wrongly truncated). The release build detects the overflow through
-  glibc-malloc-check and the sanitized build through AddressSanitizer, kept
-  separate per §3.2.
+  the palette size to the bit depth). `targets/libpng/` holds the **real upstream
+  releases** `base` (1.6.18), `incomplete` (1.6.19) and `correct` (1.6.20), plus a
+  group-designed `regression`; `configs/libpng-file.json`, `corpus/libpng/`,
+  `oracles/libpng/` and `tools/gen_libpng_corpus.py` were added. The environment
+  image now installs `zlib1g-dev` (libpng links `-lz`/`-lm`).
+- The incomplete fix is the **genuine upstream sequence**: 1.6.19 fixed the read
+  path (`png_handle_PLTE`) for CVE-2015-8126 but left `png_set_PLTE` checking
+  `png_ptr` instead of `info_ptr` (CVE-2015-8472), completed in 1.6.20. The
+  driver re-encodes through `png_set_PLTE`, so 1.6.19's incompleteness is
+  reproduced dynamically. The three scenarios return the expected verdicts:
+  `correct` → 0, `incomplete` → 10 and `regression` → 20.
 - Tool fix: `analysis.LIBC_CHECKS` now recognises glibc's exact
   `malloc(): corrupted top size` (and the sibling `corrupted unsorted chunks`,
   `invalid size (unsorted)`, `unsorted/smallbin double linked list corrupted`)

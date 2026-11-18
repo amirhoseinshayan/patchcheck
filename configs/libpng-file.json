@@ -165,17 +165,10 @@
       "signature": null
     },
     {
-      "id": "valid-bit1",
-      "category": "valid",
-      "input": "../corpus/libpng/inputs/valid-bit1.png",
-      "oracle": "../oracles/libpng/valid-bit1.json",
-      "signature": null
-    },
-    {
-      "id": "boundary-bit4-max",
+      "id": "boundary-bit8-max",
       "category": "boundary",
-      "input": "../corpus/libpng/inputs/boundary-bit4-max.png",
-      "oracle": "../oracles/libpng/boundary-bit4-max.json",
+      "input": "../corpus/libpng/inputs/boundary-bit8-max.png",
+      "oracle": "../oracles/libpng/boundary-bit8-max.json",
       "signature": null
     },
     {
