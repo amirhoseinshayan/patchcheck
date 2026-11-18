@@ -1,6 +1,6 @@
-# Patchcheck — final delivery 1.0.9
+# Patchcheck — final delivery 1.0.10
 
-- Archive version: 1.0.9 (= Python package version in both `pyproject.toml` files).
+- Archive version: 1.0.10 (= Python package version in both `pyproject.toml` files).
 - Packaged: 2026-11-18
 
 ## Upload bundle (≤ 20 MB) vs repository
@@ -136,6 +136,30 @@ The full repository layout is:
   commit `ee02909` completed with **success**, 31 of 31 smoke steps passed. The
   three libpng scenarios are recorded in the manifest with their exact codes
   (`correct` 0, `incomplete` 10, `regression` 20).
+
+## Changes for 1.0.10 (correlation grading, PR acceptance gate, New Issue)
+
+- **Patch-to-finding correlation is now graded, not boolean.** `confirmed` is
+  reserved for a direct data/control-flow link: the crashing frame line is itself
+  a changed line. A changed function or macro merely present on the failing stack
+  is a **`candidate`** (reported, never auto-confirms); a changed callee reachable
+  only statically stays `unknown` with its evidence reported. The finding status
+  (`Fixed`/`New Issue`/…) stays independent of the relation. A macro name inside a
+  comment or string is no longer counted as a use (`#if defined(…)` still is).
+  `PatchRelation.relation` now accepts `candidate`.
+- **PR acceptance gate.** The per-target pipelines now fail the check for every
+  verdict except `0` (complete, valid run): `10`/`20`/`30` fail, `40` fails as
+  “inconclusive / insufficient evidence” without claiming a vulnerability. A
+  missing/corrupt report, an unknown exit code, a reported-vs-actual mismatch or
+  an infrastructure failure can never become success. Evidence is still uploaded
+  after a failure. The tool commit is pinned in each target pipeline.
+- **Real New Issue scenario on `patchcheck-tlvparse`.** A separate `new-issue`
+  branch (draft PR) fixes `copy_value` but adds a fixed 8-byte heap buffer in
+  `load_blob`, so any blob over 8 bytes overflows there. The `poc-blob-new`
+  witness (a valid 16-byte blob) is clean on base and crashes on the candidate
+  with an ASan heap-buffer-overflow in `load_blob` — the finding is `New Issue`
+  (not `Incomplete Fix`), replay-stable, and its relation to the changed line is
+  `confirmed`.
 
 ## Reproducing
 

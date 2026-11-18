@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 # Real targets: patch (Git tag) -> expected verdict exit code.
-SCENARIO_CONFIGS = {'tlvparse-file': {'correct': 0, 'incomplete': 10, 'regression': 20},
+SCENARIO_CONFIGS = {'tlvparse-file': {'correct': 0, 'incomplete': 10, 'regression': 20, 'new-issue': 10},
                     'giflib-file': {'correct': 0, 'incomplete': 10, 'regression': 20},
                     'libpng-file': {'correct': 0, 'incomplete': 10, 'regression': 20}}
 
