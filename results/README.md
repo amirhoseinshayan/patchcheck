@@ -39,6 +39,9 @@ validated `report.json`. The reports carry the replay evidence (`replays`,
 | `giflib-correct` | giflib `gif2rgb`, CVE-2016-3977 | 0 PASS | 3 |
 | `giflib-incomplete` | giflib `gif2rgb`, CVE-2016-3977 | 10 VULN_REMAINS | 3 |
 | `giflib-regression` | giflib `gif2rgb`, CVE-2016-3977 | 20 FUNC_REGRESSION | 5 |
+| `libpng-correct` | libpng `pnginfo`, CVE-2015-8126/8472 | 0 PASS | 2 |
+| `libpng-incomplete` | libpng `pnginfo`, CVE-2015-8126/8472 | 10 VULN_REMAINS | 2 |
+| `libpng-regression` | libpng `pnginfo`, CVE-2015-8126/8472 | 20 FUNC_REGRESSION | 3 |
 | `bytecount` | harmless fixture (self-test) | 40 INCONCLUSIVE | 0 |
 | `lineparse` | harmless fixture (self-test) | 40 INCONCLUSIVE | 0 |
 
@@ -55,6 +58,7 @@ produces the same test list. The raw per-run evidence trees are not committed
 | `tlvparse-poc-long-blob.bin` | 159 | heap-buffer-overflow PoC for tlvparse |
 | `tlvparse-minimized.bin` | 72 | ddmin-reduced regression input (committed as a corpus test) |
 | `giflib-poc-bg-oob.gif` | 44 | CVE-2016-3977 PoC; ddmin finds no smaller input (GIF is rigid), registered as a corpus test unchanged |
+| `libpng-poc-bit1-256pal.png` | 847 | CVE-2015-8126 PoC (1-bit palette PNG with 256 PLTE entries) |
 
 ## Reproduction bundle
 
