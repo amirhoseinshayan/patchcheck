@@ -3,15 +3,31 @@
 - Archive version: 1.0.9 (= Python package version in both `pyproject.toml` files).
 - Packaged: 2026-11-18
 
-## Layout
+## Upload bundle (≤ 20 MB) vs repository
+
+The course upload limit is 20 MB. The delivered `patchcheck-1.0.9.zip` therefore
+contains everything **required by the assignment** (tool source, configuration,
+exact target versions, tests and independent oracles, the pipeline file, the
+reference reports and a reproduction bundle, and the run guide), while the bulky
+raw evidence stays in the Git repository and in the hosted CI run:
+
+- **In `patchcheck-1.0.9.zip`**: `src/`, `schemas/`, `configs/`, `targets/`,
+  `corpus/`, `oracles/`, `tests/`, `ci/`, `tools/`, `environment/`, `vendor/`,
+  `docs/`, `.github/`, `results/`, and the root `README.md` / `DELIVERY.md` /
+  `pyproject.toml` / `requirements.lock`.
+- **On Git only (not in the ZIP)**: `evidence/` (the full self-contained run
+  trees — stdout/stderr, binaries, replays, ~164 MB) and the frozen toolchain
+  image `patchcheck-framework-1.0.tar` (a separate attachment).
+
+The full repository layout is:
 
 - `src/`, `configs/`, `targets/`, `oracles/`, `corpus/`, `schemas/`, `tests/`, `ci/`,
   `environment/`, `tools/`, `vendor/`, `docs/` — tool, configuration, tests.
 - `results/` — reference summaries (raw evidence intentionally absent).
-- `evidence/scenarios/<name>/` — full self-contained reports.
-- `evidence/reload/` — regression reload + bundle rebuild reports.
-- `evidence/ci/` — `smoke-manifest.json` + logs.
-- `evidence/bundles/` — a representative reproduction bundle.
+- `evidence/scenarios/<name>/` — full self-contained reports (Git only).
+- `evidence/reload/` — regression reload + bundle rebuild reports (Git only).
+- `evidence/ci/` — `smoke-manifest.json` + logs (Git only).
+- `evidence/bundles/` — a representative reproduction bundle (Git only).
 
 ## Historical local CI for 1.0.4
 
